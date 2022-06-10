@@ -164,6 +164,59 @@ can be of different types to support a list with different kinds of elements.
 
 The `recursive.py` example file demonstrates how.
 
+Variable-sized item editors
+---------------------------
+
+Height resizing
++++++++++++++++
+An item editor doesn't have to be fixed size.  It is possible to use controls
+that change size, like e.g. a ``wx.lib.expando.ExpandoTextCtrl``.
+
+For this to work, the list has to be notified when the height changes.  This is
+done by calling ``DeepObjectItemEditor.LayoutCallback``.  Or alternatively, by
+intercepting ``DeepObjectItemEditor.SetLayoutCallback``, as is done in the
+``recurse.py`` sample.
+
+Expanding to the available width
+++++++++++++++++++++++++++++++++
+Controls are by default added with the ``flag=wx.ALL`` sizer option, but not
+``wx.EXPAND``.
+
+To use controls that expand to use the available width, override the Add
+parameters by returning a dict of Add parameters instead of a control from
+``DeepObjectItemEditor.Create``.
+
+That is, instead of returning a simple control like this:
+
+.. code-block:: python
+
+    def Create(self):
+        self.edit = wx.TextCtrl(self.parent, -1)
+        return [self.edit]
+
+return a dict with an override value for ``flag``:
+
+.. code-block:: python
+
+    def Create(self):
+        self.edit = wx.TextCtrl(self.parent, -1)
+        return [dict(window=self.edit, flag=wx.ALL|wx.EXPAND)]
+
+Embedding a list in a resizable context
++++++++++++++++++++++++++++++++++++++++
+If you don't want the ``DeepObjectList`` to take up space when it contains few
+or no items, then you may want to re-layout the panel or frame that it's on when
+item are added to or removed from the list.
+
+``DeepObjectList.SetLayoutCallback`` achieves this. When the vertical space needed for this list changes,
+then it will call a callback set with ``DeepObjectList.SetLayoutCallback``.
+
+This can be as simple as using the top-level window's ``wx.Window.Layout`` method:
+
+.. code-block:: python
+
+    aDeepObjectList.SetLayoutCallback(myFrame.Layout)
+
 
 The DeepObjectItemEditor class
 ------------------------------

@@ -66,11 +66,16 @@ class DeepObjectItemEditor:
     def Create(self):
         """!
         @brief Create wxPython windows.
-        @return A list of items that can be added to sizers, or None, to change 
+        @return A list of items that can be added to sizers, or None, to skip a column.
         @param[in] self.parent		wxPython parent.
         @param[in] self.readonly	If True, request read-only controls to be created.
         @par[Description]
             Never call this directly, go through CreateOnto.
+            Items returned can be:
+            - None: Skip the column.
+            - A wx.Window
+            - A wx.Sizer
+            - A dict of named Sizer.Add arguments.
         """
         raise NotImplementedError
 
@@ -254,6 +259,7 @@ class DeepObjectList(wx.Panel):
         self._append_but = None # last-line append button
         self._readonly = readonly
         self._title_background_colour = None # defaults to background
+        self._growable_cols = set()
 
         # Coordinate drag and drop:
         self._buttondown_item = None # item under the cursor at EVT_LEFT_DOWN
@@ -444,13 +450,28 @@ class DeepObjectList(wx.Panel):
             self._gbz.Add(sz_it, pos=(y,x), border=3, flag=wx.ALL)
         for it in self._items:
             for x,sz_it in it.gbz_positions:
+                Add_args = dict(flag=0)
                 if x < self._x0:
-                    border = 3
-                    flag = wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL
+                    Add_args['border'] = 3
+                    Add_args['flag'] = wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL
                 else:
-                    border = 3
-                    flag = wx.ALL
-                self._gbz.Add(sz_it, pos=(self._y0+it.rowno, x), border=border, flag=flag)
+                    Add_args['border'] = 3
+                    Add_args['flag'] |= wx.ALL
+                if isinstance(sz_it, dict):
+                    Add_args.update(sz_it)
+                    try:
+                        w = Add_args.pop('window')
+                    except KeyError:
+                        w = Add_args.pop('sizer')
+                    expand = (Add_args['flag'] & wx.EXPAND) != 0
+                else:
+                    w = sz_it
+                    expand = False
+
+                self._gbz.Add(w, pos=(self._y0+it.rowno, x), **Add_args)
+                if expand and x not in self._growable_cols:
+                    self._growable_cols.add(x)
+                    self._gbz.AddGrowableCol(x)
 
         if self._append_but is not None:
             lastline_y = self._y0 + len(self._items)
