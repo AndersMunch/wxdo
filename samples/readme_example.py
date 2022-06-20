@@ -51,7 +51,7 @@ if __name__=='__main__':
                 with iz.Frame(init=self):
                     with iz.BoxSizer(wx.VERTICAL):
                         params = Parameters()
-                        self._list_editor = iz.DeepObjectList(params).wx
+                        self._list_editor = DeepObjectList(params).wx
                         with iz.BoxSizer(wx.HORIZONTAL):
                             iz.Button("GetValue", EVT_BUTTON=self.OnGetValue)
                             iz.Button("SetValue", EVT_BUTTON=self.OnSetValue)
