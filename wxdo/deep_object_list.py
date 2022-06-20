@@ -128,6 +128,13 @@ class DeepObjectItemEditor:
         if self.__layout_callback is not None:
             self.__layout_callback()
 
+    def NotifyPosition(self, index, bgcol):
+        """!
+        @brief Inform a newly created or moved editor of its position.
+        @param[in] index	0-based index into the full list.
+        @param[in] bgcol	The background colour for that position.
+        """
+        pass
 
 
 class DeepObjectList_Parameters:
@@ -529,6 +536,7 @@ class DeepObjectList(wx.Panel):
         for rowno,it in enumerate(self._items):
             if it.rowno != rowno:
                 changed_rows.append(rowno)
+                it.widget.NotifyPosition(index=rowno, bgcol=self._even_bg if rowno%2==0 else self._odd_bg)
             it.rowno = rowno
         return changed_rows
             

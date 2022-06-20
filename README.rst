@@ -230,7 +230,8 @@ Create             Create wxPython components for editing an item.
 Destroy            Destroy the wxPython components created by ``Create``.
 SetValue           Set the value of being edited.
 GetValue           Read back the edited value.
-SetLayoutCallback  Provides a callable 
+SetLayoutCallback  Provides a callable for the editor to use when changing size.
+NotifyPosition     Called when the list position has changed.
 ================== ==============================================================
 
 ``Create`` returns a list of things to ``.Add`` to a sizer. That can be a single
@@ -243,6 +244,13 @@ returned, then they become columns of the list.  The elements are placed in
 editing.  If it does, it should callback the callback passed to it using
 ``SetLayoutCallback`` after the size has changed, to let outer layers know that a
 ``Layout`` may be necessary to adjust the positions of other controls around it.
+
+Implement ``NotifyPosition`` to be informed of what position in the list the editor's at.
+This is useful for changing the appearance to match the background colour for the position.
+Takes two parameters ``index``, a 0-based index, and ``bgcol``, the background
+colour. Remember that the background colour alternates for even and odd indexes,
+so when the editor is moved up or down the list, the background colour should
+change to match.
 
 
 wxdo.sizers

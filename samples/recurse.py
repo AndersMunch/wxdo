@@ -68,6 +68,9 @@ class Colour_ItemEditor(DeepObjectItemEditor):
        position = self._choice.GetSelection()
        return list(Colour.__members__.values())[position]
 
+    def NotifyPosition(self, index, bgcol):
+       self._label.SetBackgroundColour(bgcol)
+
 
 class List_ItemEditor(DeepObjectItemEditor):
     def __init__(self, parameters):
@@ -94,6 +97,9 @@ class List_ItemEditor(DeepObjectItemEditor):
 
     def SetLayoutCallback(self, layout_callback):
         self._sublist.SetLayoutCallback(layout_callback)
+
+    def NotifyPosition(self, index, bgcol):
+       self._label.SetBackgroundColour(bgcol)
 
 
 
