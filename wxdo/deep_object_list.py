@@ -61,7 +61,7 @@ class DeepObjectItemEditor:
     @brief Defines the wxPython components to display and edit a list item.
     """
     def __init__(self):
-        self.__layout_callback = lambda:None
+        self.__layout_callback = None
 
     def Create(self):
         """!
@@ -125,7 +125,8 @@ class DeepObjectItemEditor:
         """!
         @brief Notify that the size of the controls have changed, and a Layout may be necessary.
         """
-        self.__layout_callback()
+        if self.__layout_callback is not None:
+            self.__layout_callback()
 
 
 
@@ -254,7 +255,7 @@ class DeepObjectList(wx.Panel):
         self._param = param
         self._items = [] # list of _Item
         self._item_wxparent = self
-        self._layout_callback = lambda:None
+        self._layout_callback = None
         self._fixed_adds = [] # list of (x,y,sizer_item) for permanent decoration
         self._append_but = None # last-line append button
         self._readonly = readonly
@@ -408,7 +409,7 @@ class DeepObjectList(wx.Panel):
         for item_val in val:
             self._items.append(self._create_item(item_val))
 
-        self._rebuild_gbz(size_changed=True)
+        self._rebuild_gbz(size_change=len(self._items))
 
     def _create_item(self, item_val):
         it = _Item(self._param, self._item_wxparent, self._readonly, item_val)
@@ -437,9 +438,11 @@ class DeepObjectList(wx.Panel):
                 it.gbz_positions.append((col,but))
         return it
 
-    def _rebuild_gbz(self, size_changed):
+    def _rebuild_gbz(self, size_change):
         changed_rows = self._renumber_items()
         gbz = self._gbz
+
+        rowheights_before = gbz.GetRowHeights()
 
         # Detach all sizers and windows from the GridBagSizer without destroying them.
         for i in reversed(range(gbz.GetItemCount())):
@@ -478,20 +481,47 @@ class DeepObjectList(wx.Panel):
             self._gbz.Add(self._append_but, pos=(lastline_y, self._add_col),
                           border=3, flag=wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
         SetSizerNaturalTabOrder(gbz)
-        self.Layout()
-        if size_changed:
-            self._layout_callback()
-        if len(changed_rows)>0:
-            min_ch_row = min(changed_rows)
-            max_ch_row = max(changed_rows)
+        gbz.Layout()
 
-        # A full Refresh causes flicker, but then it seems to work fine without it?!
-        # Perhaps .Layout() does a Refresh automatically when changing a wx.Window's position?
-        # If that's the reason, then I expect that background colours get messed up when moving
-        # different-sized elements.
-        # xx ought to use changed_rows to compute a precise Refresh rect, only for moved items.
-        # xx remember that when deleting rows, Refresh needs to cover the empty space where a row
-        # used to be. Could handle that with a high-water mark in the background repaint logic.
+        if size_change != 0 and self._layout_callback is not None:
+            self._layout_callback()
+            # The width available to the gbz may have changed, requiring a Refresh.
+            # However, we assume that whatever Refresh is necessary has been trigged by the callback.
+
+        # A full self.Refresh() causes flicker, so compute the precise refresh needed and do a more
+        # limited RefreshRect.
+        #
+        # Unfortunately it seems like something else is triggering a full refresh, and this code has
+        # little or no effect. Is it self._gbz.Layout()? Or self._gbz.Add? Dunno.
+        #
+        if len(changed_rows)>0 or size_change != 0:
+            rowheights_after = gbz.GetRowHeights()
+            panel_size = self.GetSize()
+
+            if len(changed_rows) > 0:
+                min_ch_row = min(changed_rows)
+            elif size_change > 0:
+                min_ch_row = len(self._items) - size_change
+            else:
+                min_ch_row = len(self._items)
+            y_top = sum(rh for rh in rowheights_after[:self._y0 + min_ch_row])
+
+            if size_change < 0:
+                # Redraw includes erased space after a delete.
+                y_bottom = max(sum(rowheights_before), sum(rowheights_after))
+            else:
+                y_bottom = sum(rowheights_after[:self._y0 + max(changed_rows) + 1])
+
+            if y_bottom > y_top:
+                self.RefreshRect(
+                    wx.Rect(
+                        0,			# x
+                        y_top,			# y
+                        panel_size.Width,	# width
+                        y_bottom-y_top,		# height
+                        ))
+            
+
 
     def _renumber_items(self):
         # Align item.rowno with the actual position in self._items.
@@ -511,7 +541,7 @@ class DeepObjectList(wx.Panel):
                 pass
             else:
                 self._items.insert(item.rowno, self._create_item(new_obj))
-                self._rebuild_gbz(size_changed=True)
+                self._rebuild_gbz(size_change=+1)
         return OnAddBefore
 
     def _OnAppendNew(self, event):
@@ -521,7 +551,7 @@ class DeepObjectList(wx.Panel):
             pass
         else:
             self._items.append(self._create_item(new_obj))
-            self._rebuild_gbz(size_changed=True)
+            self._rebuild_gbz(size_change=+1)
 
     def _show_move_icon(self, item, i_move):
         if i_move:
@@ -563,7 +593,7 @@ class DeepObjectList(wx.Panel):
                 for it in self._move_select_items:
                     self._show_move_icon(it, False)
                 self._move_select_items.clear()
-                self._rebuild_gbz(size_changed=False)
+                self._rebuild_gbz(size_change=0)
 
             elif up_item is not None and up_item == self._buttondown_item:
                 self._flip_move_button_status(item)
@@ -619,7 +649,7 @@ class DeepObjectList(wx.Panel):
                 for item in reversed(move_items):
                     del self._items[item.rowno]
                 self._items[insert_at:insert_at] = move_items
-                self._rebuild_gbz(size_changed=False)
+                self._rebuild_gbz(size_change=0)
 
     def _OnDown(self, event):
         if len(self._move_select_items)==0:
@@ -631,7 +661,7 @@ class DeepObjectList(wx.Panel):
                 for item in reversed(move_items):
                     del self._items[item.rowno]
                 self._items[insert_at:insert_at] = move_items
-                self._rebuild_gbz(size_changed=False)
+                self._rebuild_gbz(size_change=0)
 
     def _flip_move_button_status(self, item):
         if item in self._move_select_items:
@@ -658,7 +688,7 @@ class DeepObjectList(wx.Panel):
             if item in self._move_select_items:
                 self._move_select_items.discard(item)
             item.rowno = "formerly %s" % (item.rowno,) # for debugging
-            self._rebuild_gbz(size_changed=True)
+            self._rebuild_gbz(size_change=-1)
         return OnErase
 
     def GetValue(self):
