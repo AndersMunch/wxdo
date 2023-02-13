@@ -14,29 +14,31 @@ Installation
 
 ``$ pip install wxdo``
 
+Source code: https://github.com/AndersMunch/wxdo
+
   
 aslong
 ======
 
-``aslong`` is for creating wxPython event handlers that are long-running, yet
+*aslong* is for creating wxPython event handlers that are long-running, yet
 don't block the user interface.
 
-It uses _async_ to achieve this, but not _asyncio_.  That means event handlers
-can use ordinary blocking code, like ``time.sleep``, ``requests.get`` and such,
-and not their asyncio equivalents.
+It uses *async* to achieve this, but not *asyncio*.  That means event handlers
+can use ordinary blocking code, like ``time.sleep(...)``, ``requests.get(anURL)``,
+```databasecursor.execute('SELECT ...')`` and such, and not their asyncio equivalents.
 
-Event handlers are written as coroutine functions decorated with the ``aslong.task`` decorator.
-Other than that they look just like regular event handler methods, and as far as
-the body of the function is just regular event handling code, nothing special
-happens.
+Event handlers are written as coroutine functions decorated with the
+``aslong.task`` decorator.  Other than that they look just like regular event
+handler methods, and as far as the body of the function is just regular event
+handling code, nothing special happens.
 
 Then you call ``await aslong.bg()``, and from that point on, the code is no
 longer running in the UI thread. It has been teleported to a background thread,
 and the UI is once again responsive, even though the event handler is still
 running.
 
-While on the background thread, long-running work can be done, including calling
-blocking code like ``time.sleep`` with no ill effects for the UI.
+While on the background thread, time consuming work can be done, without
+affecting the UI.
 
 Then you call ``await aslong.ui()``, and from that point on, the code is no
 longer running in the background thread. It has been teleported back to the UI
@@ -57,7 +59,7 @@ is roughly equivalent to writing
 
      await aslong.ui()
      try:
-         _modify_ui()
+         modify_ui()
      finally:
          await aslong.bg()
 
@@ -76,18 +78,19 @@ That is to say, e.g. if `self` is a panel, and you write:
        but = wx.Button(self, -1, "Press me")
        but.Bind(wx.EVT_BUTTON, self.OnButton)
    @aslong.task
-   async def OnButton(..
+   async def OnButton(self, event):
+       ...
 
 then a background worker thread is created (when necessary) for `self`, the
-panel (not for the button).  All event handlers on the same panel share the same
-thread.  You can start multiple long-running tasks: If an event with a
-long-running task is triggered while another long-running task is still running,
-then they take turns running their background code, so that only one tasks
-background code is running at any time.
+panel (not for the button), when the event handler is called.  All event
+handlers on the same panel share the same thread.  You can start multiple
+long-running tasks: If an event with a long-running task is triggered while
+another long-running task is still running, then they take turns running their
+background code, so that only one tasks background code is running at any time.
 
-Background code can run concurrently, though: The background code for one
+Background code can run concurrently, though: The background code with one
 associated wx object runs concurrently with the background code for a different
-associated wx object, as they each have their own thread.
+associated wx object, as they each have their own background worker thread.
 
 
 Cleanup
@@ -139,7 +142,7 @@ destroyed, then calling methods on that may fail.
 Caveats and limitations 
 -----------------------
 
-Close and destroy events cannot be aslong long-running tasks.
+Close and destroy events cannot be *aslong* long-running tasks.
 
 When running on the background thread, the usual wxPython restrictions on
 threaded code applies: Code on a background thread must not interact with
@@ -157,7 +160,8 @@ independently.  Background code should use locks, ``threading.Lock`` and
 ``threading.RLock``, to safeguard shared resources, just like any other threaded
 code.  UI code, on the other hand, never runs concurrently with other UI code --
 there is only ever one UI thread, but you may still need to use locks, if
-they're touching anything that a background thread may also touch.
+they're touching anything that a background thread for a different task may also
+touch.
 
 It is safe to hold a ``threading.Lock`` lock while teleporting between UI and
 background, but do not teleport while holding a ``threading.RLock``.  Your task
@@ -168,7 +172,7 @@ event handlers are not guaranteed to run to completion, which means that locks
 may be held that are never released, causing deadlocks.
 
 If any libraries are in use that are somehow tied to a specific thread, like
-Windows COM objects, then aslong long-running tasks should not be used, unless
+Windows COM objects, then *aslong* long-running tasks should not be used, unless
 the thread is question is the GUI thread.  Although there is only one background
 thread at any time, an idle background thread is eventually closed, and a new,
 different, thread is created on demand.
@@ -432,7 +436,6 @@ from any arbitrary thread. In the GUI thread the items are then popped one by
 one, and an handler function is called with the item.  This handler function can
 then update the GUI, since it's running on the GUI thread.
 
-
 WxQueue(wxevthandler, onreceiveitem, maxsize=0)
 -----------------------------------------------
 
@@ -454,6 +457,12 @@ Popping from the queue
 ----------------------
 
 There's no need to pop manually from the queue. Just let the ``onreceiveitem`` callback handle that.
+
+wxdo.workerthread
+=================
+
+This module is mostly an implementation detail for *wxdo.wxqueue*.  It's a
+self-closing background thread that work items can be posted to.
 
 
 Cleanup
