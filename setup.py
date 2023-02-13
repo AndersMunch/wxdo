@@ -5,7 +5,7 @@ with open('README.rst','rb') as f:
 
 setup(
     name='wxdo',
-    version='0.11',
+    version='0.12',
     description='wxPython components - list control and sizer utilities',
     long_description=long_description,
     url='https://github.com/AndersMunch/wxdo',
@@ -27,5 +27,5 @@ setup(
         'Topic :: Software Development :: User Interfaces ',
         'License :: OSI Approved :: BSD License',
         ],
-    keywords='wxPython wxWidgets list widget sizers',
+    keywords='wxPython wxWidgets list widget sizers long-running',
 )

@@ -1,10 +1,174 @@
 wxdo
 ====
 
-A small wxPython component library.
+A collection of wxPython components and utilities.
 
+* ``wxdo.aslong``: A system for delegating long-running tasks to a background thread.
 * ``wxdo.deep_object_list``: A widget for editing a list of arbitrary content.
+* ``wxdo.wxqueue``: A ``queue.Queue`` variant for sending work from a worker thread to the GUI thread.
 * ``wxdo.sizers``: Sizer utilities.
+* ``wxdo.workerthread``: Background worker thread manager.
+
+Installation
+============
+
+``$ pip install wxdo``
+
+  
+aslong
+======
+
+``aslong`` is for creating wxPython event handlers that are long-running, yet
+don't block the user interface.
+
+It uses _async_ to achieve this, but not _asyncio_.  That means event handlers
+can use ordinary blocking code, like ``time.sleep``, ``requests.get`` and such,
+and not their asyncio equivalents.
+
+Event handlers are written as coroutine functions decorated with the ``aslong.task`` decorator.
+Other than that they look just like regular event handler methods, and as far as
+the body of the function is just regular event handling code, nothing special
+happens.
+
+Then you call ``await aslong.bg()``, and from that point on, the code is no
+longer running in the UI thread. It has been teleported to a background thread,
+and the UI is once again responsive, even though the event handler is still
+running.
+
+While on the background thread, long-running work can be done, including calling
+blocking code like ``time.sleep`` with no ill effects for the UI.
+
+Then you call ``await aslong.ui()``, and from that point on, the code is no
+longer running in the background thread. It has been teleported back to the UI
+thread, and the results of the long-running work can be entered into the
+wxPython GUI components.
+
+Is is also possible to use ``aslong.ui`` and ``aslong.bg`` as async context managers.
+Writing
+
+.. code-block:: python
+    async with aslong.bg:
+        modify_ui()
+
+is roughly equivalent to writing
+
+.. code-block:: python
+     await aslong.ui()
+     try:
+         _modify_ui()
+     finally:
+         await aslong.bg()
+
+
+The associated wx object
+------------------------
+
+The long-running task is associated with the object for which the event handler
+is defined.
+
+That is to say, e.g. if `self` is a panel, and you write:
+
+.. code-block:: python
+   def __init__(self):
+       but = wx.Button(self, -1, "Press me")
+       but.Bind(wx.EVT_BUTTON, self.OnButton)
+   @aslong.task
+   async def OnButton(..
+
+then a background worker thread is created (when necessary) for `self`, the
+panel (not for the button).  All event handlers on the same panel share the same
+thread.  You can start multiple long-running tasks: If an event with a
+long-running task is triggered while another long-running task is still running,
+then they take turns running their background code, so that only one tasks
+background code is running at any time.
+
+Background code can run concurrently, though: The background code for one
+associated wx object runs concurrently with the background code for a different
+associated wx object, as they each have their own thread.
+
+
+Cleanup
+-------
+When a wxPython object with associated long-running tasks is destroyed, any
+tasks that are still running in the background are left hanging.
+
+If they don't use any context managers and don't use any try..finally, then they
+will just quitely stop when the current section of background work is done.  If
+they do, then Python will complain with a mysterious error: ``RuntimeError:
+coroutine ignored GeneratorExit``.  That's Python saying that there was some
+cleanup work left to do, and it didn't get done, because a coroutine was
+abandoned early.
+
+To avoid abandoning coroutines, use ``aslong.cleanup(self)`` in the close or
+destroy event of the associated wx object, to run still-running tasks to
+completion.  Termination is done by ``await aslong.ui()`` raising an
+``InterruptedError`` exception.  ``finally`` sections and context manager exits
+will then be executed as part of normal stack unwinding.
+
+During cleanup, all code is run on the UI thread (the thread that you called
+``aslong.cleanup`` from).
+
+See the sample ``aslong_multi.py`` for how to call ``cleanup``.
+
+While the injected ``InterruptError`` speeds up the cleanup, it does mean that
+the long-running work that was in progress is not finished.
+
+You may opt to trap the InterruptedError exception in the event handler, and
+so insist that the rest of the work is done. E.g. something like this:
+
+.. code-block:: python
+    for thing in many_things:
+        try:
+            await aslong.ui()
+        except InterruptedError:
+            pass # I won't be interrupted!
+        else:
+            self.label.SetValue("Still working")
+        await aslong.bg()
+        process(thing)
+
+Just understand that the UI will then block until it's all done.  And keep in
+mind that if the wxPython panel/frame/whatever is in the process of being
+destroyed, then calling methods on that may fail.
+
+
+Caveats and limitations 
+-----------------------
+
+Close and destroy events cannot be aslong long-running tasks.
+
+When running on the background thread, the usual wxPython restrictions on
+threaded code applies: Code on a background thread must not interact with
+wxPython components.
+
+More so, the wx.Event object that was passed to an event handler must only be
+used in the initial part of the event handler, before the first visit to the
+background thread.  After that, the C++ event object may have been destroyed.
+
+All event handlers associated with the same wxPython object use the same
+background worker thread, and background jobs are run sequentially on that
+thread.  That gives you a little bit of thread-safety, but not a lot: Other
+event handlers on other wxPython objects have their own thread that runs
+independently.  Background code should use locks, ``threading.Lock`` and
+``threading.RLock``, to safeguard shared resources, just like any other threaded
+code.  UI code, on the other hand, never runs concurrently with other UI code --
+there is only ever one UI thread, but you may still need to use locks, if
+they're touching anything that a background thread may also touch.
+
+It is safe to hold a ``threading.Lock`` lock while teleporting between UI and
+background, but do not teleport while holding a ``threading.RLock``.  Your task
+may deadlock against itself, or worse.
+
+If locks are held, then running ``aslong.cleanup()`` is important: Without it,
+event handlers are not guaranteed to run to completion, which means that locks
+may be held that are never released, causing deadlocks.
+
+If any libraries are in use that are somehow tied to a specific thread, like
+Windows COM objects, then aslong long-running tasks should not be used, unless
+the thread is question is the GUI thread.  Although there is only one background
+thread at any time, an idle background thread is eventually closed, and a new,
+different, thread is created on demand.
+
 
 DeepObjectList
 ==============
@@ -251,6 +415,56 @@ Takes two parameters ``index``, a 0-based index, and ``bgcol``, the background
 colour. Remember that the background colour alternates for even and odd indexes,
 so when the editor is moved up or down the list, the background colour should
 change to match.
+
+
+wxdo.wxqueue
+==========
+
+The ``WxQueue`` class is a ``queue.Queue`` subclass designed for sending data
+from a worker thread to a function that can change the GUI state accordingly. 
+
+The queue is associated with a ``wx.Window``.  Work items can put into the queue
+from any arbitrary thread. In the GUI thread the items are then popped one by
+one, and an handler function is called with the item.  This handler function can
+then update the GUI, since it's running on the GUI thread.
+
+
+WxQueue(wxevthandler, onreceiveitem, maxsize=0)
++++++++++++++++++++++++++++++++++++++++++++++++
+
+WxQueue.__init__ takes three parameters
+
+ * wxevthandler: The ``wx.Window`` that the queue is anchored to. Only one
+   ``WxQueue`` can be anchored to any window.
+ * onreceiveitem: A callback function that takes two parameters: The
+   ``wx.Window`` and the next item popped from the queue.  Runs on the GUI
+   thread.
+ * maxsize: Parameter for ``queue.Queue.__init__``. 0 means unbounded queue.
+
+Pushing to the queue
+++++++++++++++++++++
+
+Use the ``put`` and ``put_nowait`` methods, as described in the ``queue.Queue`` documentation.
+
+Popping from the queue
+++++++++++++++++++++++
+
+There's no need to pop manually from the queue. Just let the ``onreceiveitem`` callback handle that.
+
+
+Cleanup
++++++++
+
+The queue can be explicitly unbound from the ``wx.Window``, along with the
+callback, using the ``Unbind`` method, if for some reason you no longer want it
+to receive queued items.  It can then be rebound to a different ``wx.Window``
+using the ``BindReceiveItem`` method.
+
+There is usually no need to do that, though.
+
+When the ``wx.Window`` is destroyed, remaining items in the queue are left
+unprocessed, ensuring that the ``onreceiveitem`` callback is never called when
+the ``wx`` objects it's updating no longer exist.
 
 
 wxdo.sizers
