@@ -47,12 +47,14 @@ Is is also possible to use ``aslong.ui`` and ``aslong.bg`` as async context mana
 Writing
 
 .. code-block:: python
+
     async with aslong.bg:
         modify_ui()
 
 is roughly equivalent to writing
 
 .. code-block:: python
+
      await aslong.ui()
      try:
          _modify_ui()
@@ -69,6 +71,7 @@ is defined.
 That is to say, e.g. if `self` is a panel, and you write:
 
 .. code-block:: python
+
    def __init__(self):
        but = wx.Button(self, -1, "Press me")
        but.Bind(wx.EVT_BUTTON, self.OnButton)
@@ -117,6 +120,7 @@ You may opt to trap the InterruptedError exception in the event handler, and
 so insist that the rest of the work is done. E.g. something like this:
 
 .. code-block:: python
+
     for thing in many_things:
         try:
             await aslong.ui()
@@ -418,7 +422,7 @@ change to match.
 
 
 wxdo.wxqueue
-==========
+============
 
 The ``WxQueue`` class is a ``queue.Queue`` subclass designed for sending data
 from a worker thread to a function that can change the GUI state accordingly. 
@@ -430,7 +434,7 @@ then update the GUI, since it's running on the GUI thread.
 
 
 WxQueue(wxevthandler, onreceiveitem, maxsize=0)
-+++++++++++++++++++++++++++++++++++++++++++++++
+-----------------------------------------------
 
 WxQueue.__init__ takes three parameters
 
@@ -442,18 +446,18 @@ WxQueue.__init__ takes three parameters
  * maxsize: Parameter for ``queue.Queue.__init__``. 0 means unbounded queue.
 
 Pushing to the queue
-++++++++++++++++++++
+--------------------
 
 Use the ``put`` and ``put_nowait`` methods, as described in the ``queue.Queue`` documentation.
 
 Popping from the queue
-++++++++++++++++++++++
+----------------------
 
 There's no need to pop manually from the queue. Just let the ``onreceiveitem`` callback handle that.
 
 
 Cleanup
-+++++++
+-------
 
 The queue can be explicitly unbound from the ``wx.Window``, along with the
 callback, using the ``Unbind`` method, if for some reason you no longer want it
