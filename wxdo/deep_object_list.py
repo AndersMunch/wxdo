@@ -586,6 +586,7 @@ class DeepObjectList(wx.Panel):
     def _mk_On_UpDown_buttondown(self, but, item):
         def On_UpDown_buttondown(event):
             event.Skip()
+            self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
             self._buttondown_item = item
             self._show_move_icon(item, True)
         return On_UpDown_buttondown
@@ -593,6 +594,7 @@ class DeepObjectList(wx.Panel):
     def _mk_OnUpDown_buttonup(self, but, item):
         def OnUpDown_buttonup(event):
             event.Skip()
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
             self._buttonup_time = time.monotonic()
             up_item = self._item_for_y(but.GetPosition().y + event.y)
             if up_item is not None and up_item != item:
