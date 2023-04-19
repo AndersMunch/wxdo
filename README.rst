@@ -404,6 +404,7 @@ SetValue           Set the value of being edited.
 GetValue           Read back the edited value.
 SetLayoutCallback  Provides a callable for the editor to use when changing size.
 NotifyPosition     Called when the list position has changed.
+GetItemEditors     Get a list[ItemEditor] with current content of the list.
 ================== ==============================================================
 
 ``Create`` returns a list of things to ``.Add`` to a sizer. That can be a single

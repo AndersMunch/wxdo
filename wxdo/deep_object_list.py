@@ -346,6 +346,9 @@ class DeepObjectList(wx.Panel):
         else:
             self.SetValue(initial_value)
 
+    def GetItemEditors(self):
+        return [it.widget for it in self._items]
+            
     def _OnCancelSelect(self, event):
         for it in self._move_select_items:
             self._show_move_icon(it, False)
