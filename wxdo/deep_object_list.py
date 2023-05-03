@@ -210,7 +210,6 @@ class _Item:
         self.widget = params.CreateItemEditor(initial_obj)
         self.sizer_items = self.widget.CreateOnto(parent, readonly)
         self._original_obj = initial_obj
-        self.widget.SetValue(initial_obj)
         self.rowno = None
         self.buttons = []
 
@@ -419,7 +418,10 @@ class DeepObjectList(wx.Panel):
         for item_val in val:
             self._items.append(self._create_item(item_val))
 
-        self._rebuild_gbz(size_change=len(self._items))
+        def SetValue_callback():
+            for it in self._items:
+                it.SetValue(it._original_obj)
+        self._rebuild_gbz(size_change=len(self._items), SetValue_callback=SetValue_callback)
 
     def _create_item(self, item_val):
         it = _Item(self._param, self._item_wxparent, self._readonly, item_val)
@@ -448,7 +450,10 @@ class DeepObjectList(wx.Panel):
                 it.gbz_positions.append((col,but))
         return it
 
-    def _rebuild_gbz(self, size_change):
+    def _rebuild_gbz(self, size_change, SetValue_callback=None):
+        # SetValue_callback: To be called *after* the sizer hierarchy has been built but *before* Layout.
+        # This works around an ExpandoTextCtrl.SetValue bug which gets the size wrong, if the
+        # control is not yet in a sizer.
         changed_rows = self._renumber_items()
         gbz = self._gbz
 
@@ -491,6 +496,9 @@ class DeepObjectList(wx.Panel):
             self._gbz.Add(self._append_but, pos=(lastline_y, self._add_col),
                           border=3, flag=wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
         SetSizerNaturalTabOrder(gbz)
+
+        if SetValue_callback is not None:
+            SetValue_callback()
         gbz.Layout()
 
         if size_change != 0 and self._layout_callback is not None:
@@ -551,8 +559,9 @@ class DeepObjectList(wx.Panel):
             except CancelOperation:
                 pass
             else:
-                self._items.insert(item.rowno, self._create_item(new_obj))
-                self._rebuild_gbz(size_change=+1)
+                new_item = self._create_item(new_obj)
+                self._items.insert(item.rowno, new_item)
+                self._rebuild_gbz(size_change=+1, SetValue_callback=lambda:new_item.SetValue(new_obj))
         return OnAddBefore
 
     def _OnAppendNew(self, event):
@@ -561,8 +570,9 @@ class DeepObjectList(wx.Panel):
         except CancelOperation:
             pass
         else:
-            self._items.append(self._create_item(new_obj))
-            self._rebuild_gbz(size_change=+1)
+            new_item = self._create_item(new_obj)
+            self._items.append(new_item)
+            self._rebuild_gbz(size_change=+1, SetValue_callback=lambda:new_item.SetValue(new_obj))
 
     def _show_move_icon(self, item, i_move):
         if i_move:
