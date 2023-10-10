@@ -204,6 +204,7 @@ class DeepObjectList_Parameters:
 class _Item:
     # Bookkeeping for an entry in the list.
     def __init__(self, params, parent, readonly, initial_obj):
+        # 'initial_obj' is only to determine the item editor type.  SetValue(initial_obj) comes later.
         self.parent = parent
         self.sizer_items = []
         self.gbz_positions = [] # list of (x,sizer_item) of things to move with the item
@@ -423,6 +424,16 @@ class DeepObjectList(wx.Panel):
                 it.SetValue(it._original_obj)
         self._rebuild_gbz(size_change=len(self._items), SetValue_callback=SetValue_callback)
 
+    def Extend(self, item_vals):
+        new_items = list(map(self._create_item, item_vals))
+        self._items.extend(new_items)
+        for it in new_items:
+            it.SetValue(it._original_obj)
+        self._rebuild_gbz(size_change=len(new_items))
+
+    def Append(self, item_val):
+        self.Extend([item_val])
+
     def _create_item(self, item_val):
         it = _Item(self._param, self._item_wxparent, self._readonly, item_val)
         it.widget.SetLayoutCallback(self._layout_callback)
@@ -451,9 +462,11 @@ class DeepObjectList(wx.Panel):
         return it
 
     def _rebuild_gbz(self, size_change, SetValue_callback=None):
-        # SetValue_callback: To be called *after* the sizer hierarchy has been built but *before* Layout.
-        # This works around an ExpandoTextCtrl.SetValue bug which gets the size wrong, if the
-        # control is not yet in a sizer.
+        #@brief Rebuilds the GridBagSizer to reflect new items added, removed or moved around.
+        #@param[in] size_change		How the count of items has changed since the last call.
+        #@param[in] SetValue_callback	To be called *after* the sizer hierarchy has been built but
+        #				*before* Layout. This works around an ExpandoTextCtrl.SetValue bug which gets
+        #				the size wrong, if the control is not yet in a sizer.
         changed_rows = self._renumber_items()
         gbz = self._gbz
 

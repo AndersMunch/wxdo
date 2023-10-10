@@ -301,6 +301,8 @@ Methods
 ================== ==============================================================
 SetValue           Set a list of Python objects as the value of the list widget.
 GetValue           Get the value of the list widget as a list of Python objects.
+Append             Add an item to the bottom of the list and scroll to it.
+Extend             Add multiple items to the bottom of the list and scroll to it.
 SetLayoutCallback  Set a callback for when content changes size, and the full
                    list needs to be re-layouted.
 SetTexts           Customise user interface texts.
